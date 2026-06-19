@@ -81,6 +81,22 @@ public class Rifle : MonoBehaviour
         Debug.Log("Reloaded!");
     }
 
+    Camera GetActiveCamera()
+    {
+        if (fpsCamera != null && fpsCamera.gameObject.activeInHierarchy)
+        {
+            return fpsCamera;
+        }
+
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            return mainCam;
+        }
+
+        return FindObjectOfType<Camera>();
+    }
+
     void Shoot()
     {
         currentAmmo--;
@@ -95,19 +111,45 @@ public class Rifle : MonoBehaviour
             audioSource.PlayOneShot(shootSound);
         }
 
-        RaycastHit hit;
-        Vector3 rayOrigin = fpsCamera != null ? fpsCamera.transform.position : transform.position;
-        Vector3 rayDirection = fpsCamera != null ? fpsCamera.transform.forward : transform.forward;
+        Camera activeCam = GetActiveCamera();
+        Vector3 rayOrigin = activeCam != null ? activeCam.transform.position : transform.position;
+        Vector3 rayDirection = activeCam != null ? activeCam.transform.forward : transform.forward;
 
-        if (Physics.Raycast(rayOrigin, rayDirection, out hit, range))
+        RaycastHit[] hits = Physics.RaycastAll(rayOrigin, rayDirection, range);
+        System.Array.Sort(hits, (x, y) => x.distance.CompareTo(y.distance));
+
+        PlayerController owner = GetComponentInParent<PlayerController>();
+        RaycastHit hit = new RaycastHit();
+        bool hasHit = false;
+
+        foreach (RaycastHit hitInfo in hits)
         {
-            Debug.Log("Hit: " + hit.collider.name);
+            // Ignore any colliders belonging to the player who shot the weapon
+            if (owner != null && hitInfo.collider.transform.IsChildOf(owner.transform))
+            {
+                continue;
+            }
+
+            hit = hitInfo;
+            hasHit = true;
+            break;
+        }
+
+        if (hasHit)
+        {
+            Debug.Log("Hit: " + hit.collider.name + " at " + hit.point);
 
             // Deal damage if we hit a damageable object (like another player controller or enemy)
-            PlayerController target = hit.collider.GetComponent<PlayerController>();
+            PlayerController target = hit.collider.GetComponentInParent<PlayerController>();
             if (target != null)
             {
                 target.TakeDamage(damage);
+            }
+
+            ObjectToHit objectToHit = hit.collider.GetComponentInParent<ObjectToHit>();
+            if (objectToHit != null)
+            {
+                objectToHit.TakeDamage(damage);
             }
 
             // Spawn hit impact visual
@@ -116,6 +158,10 @@ public class Rifle : MonoBehaviour
                 GameObject impactGO = Instantiate(impactEffect, hit.point, Quaternion.LookRotation(hit.normal));
                 Destroy(impactGO, 2f);
             }
+        }
+        else
+        {
+            Debug.Log("Raycast shot from " + rayOrigin + " in direction " + rayDirection + " did not hit any target.");
         }
     }
 }
