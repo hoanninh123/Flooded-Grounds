@@ -42,6 +42,11 @@ public class PlayerController : MonoBehaviour
         {
             animator = GetComponentInChildren<Animator>();
         }
+
+        if (activeRifle == null)
+        {
+            activeRifle = GetComponentInChildren<Rifle>(true);
+        }
         
         // Hide and lock cursor to screen
         Cursor.lockState = CursorLockMode.Locked;
